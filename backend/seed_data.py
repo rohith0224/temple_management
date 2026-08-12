@@ -110,11 +110,6 @@ def seed_database():
         start_date = today - timedelta(days=44)
 
         print(f"Creating demo data from {start_date} to {today}")
-
-        # -----------------------
-        # Vendors
-        # -----------------------
-
         vendors = []
 
         vendor_names = [
@@ -147,11 +142,6 @@ def seed_database():
             vendors.append(vendor)
 
         db.flush()
-
-        # -----------------------
-        # Campaigns
-        # -----------------------
-
         campaign_data = [
             ("Temple Renovation Fund", 50000),
             ("Annual Festival Fund", 30000),
@@ -179,11 +169,6 @@ def seed_database():
             campaigns.append(campaign)
 
         db.flush()
-
-        # -----------------------
-        # Donors
-        # -----------------------
-
         donors = []
 
         for _ in range(100):
@@ -198,11 +183,6 @@ def seed_database():
             donors.append(donor)
 
         db.flush()
-
-        # -----------------------
-        # Donations
-        # -----------------------
-
         donations = []
 
         for i in range(250):
@@ -240,11 +220,6 @@ def seed_database():
 
             db.add(donation)
             donations.append(donation)
-
-        # -----------------------
-        # Assets
-        # -----------------------
-
         assets = []
 
         for i in range(80):
@@ -281,11 +256,6 @@ def seed_database():
             assets.append(asset)
 
         db.flush()
-
-        # -----------------------
-        # Maintenance Records
-        # -----------------------
-
         for _ in range(60):
             asset = random.choice(assets)
             maintenance_date = start_date + timedelta(days=random.randint(0, 44))
@@ -314,11 +284,6 @@ def seed_database():
             db.add(record)
 
         db.commit()
-
-        # -----------------------
-        # Summary
-        # -----------------------
-
         donation_count = db.query(Donation).count()
         asset_count = db.query(Asset).count()
         donor_count = db.query(Donor).count()

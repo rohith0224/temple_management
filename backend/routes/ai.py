@@ -31,11 +31,6 @@ class AIQuery(BaseModel):
     history: Optional[List[ChatTurn]] = None
 
 
-# =========================================================
-# SERIALIZERS
-# =========================================================
-
-
 def serialize_donation(donation: Donation):
     if donation.is_anonymous:
         donor_name = "Anonymous"
@@ -103,11 +98,6 @@ def serialize_maintenance(record: MaintenanceRecord):
     }
 
 
-# =========================================================
-# ASSET FILTER
-# =========================================================
-
-
 def build_asset_filter(filter_item):
     columns = {
         "condition": Asset.condition,
@@ -164,11 +154,6 @@ def build_asset_filter(filter_item):
         return and_(column >= today, column <= (today + timedelta(days=value)))
 
     return None
-
-
-# =========================================================
-# MAINTENANCE FILTER
-# =========================================================
 
 
 def build_maintenance_filter(filter_item):
@@ -243,11 +228,6 @@ def build_maintenance_filter(filter_item):
     return None
 
 
-# =========================================================
-# AI QUERY
-# =========================================================
-
-
 @router.post("/query")
 def ai_query(request: AIQuery, db: Session = Depends(get_db)):
     history_payload = (
@@ -262,11 +242,6 @@ def ai_query(request: AIQuery, db: Session = Depends(get_db)):
 
     data = None
     response_date_range = None
-
-    # =====================================================
-    # DONATIONS
-    # =====================================================
-
     if domain == "donations":
         period = intent.get("period") or "30d"
 
@@ -435,11 +410,6 @@ def ai_query(request: AIQuery, db: Session = Depends(get_db)):
             donations = base_query.order_by(Donation.amount.desc()).limit(20).all()
 
             data = [serialize_donation(donation) for donation in donations]
-
-    # =====================================================
-    # ASSETS
-    # =====================================================
-
     elif domain == "assets":
         if analysis == "asset_summary":
             total_assets = db.query(Asset).count()
@@ -538,11 +508,6 @@ def ai_query(request: AIQuery, db: Session = Depends(get_db)):
             data = [
                 {"category": row.category, "value": float(row.value)} for row in results
             ]
-
-    # =====================================================
-    # MAINTENANCE
-    # =====================================================
-
     elif domain == "maintenance":
         if analysis == "maintenance_summary":
             total_records = db.query(MaintenanceRecord).count()
@@ -721,11 +686,6 @@ def ai_query(request: AIQuery, db: Session = Depends(get_db)):
                 }
                 for row in results
             ]
-
-    # =====================================================
-    # FINANCE
-    # =====================================================
-
     elif domain == "finance":
         period = intent.get("period") or "30d"
 
@@ -917,11 +877,6 @@ def ai_query(request: AIQuery, db: Session = Depends(get_db)):
                 data = sorted(
                     data, key=lambda item: item["progress_percent"], reverse=True
                 )
-
-    # =====================================================
-    # AI EXPLANATION
-    # =====================================================
-
     result = explain_result(question=request.question, intent=intent, data=data)
 
     return {

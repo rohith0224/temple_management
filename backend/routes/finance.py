@@ -11,11 +11,6 @@ from backend.app.models import Asset, Campaign, Donation, MaintenanceRecord
 router = APIRouter(prefix="/finance", tags=["Finance"])
 
 
-# =========================================================
-# DATE RANGE
-# =========================================================
-
-
 def get_finance_date_range(
     period: str, start_date: Optional[date] = None, end_date: Optional[date] = None
 ):
@@ -50,11 +45,6 @@ def get_finance_date_range(
     return (today - timedelta(days=29), today)
 
 
-# =========================================================
-# SUMMARY
-# =========================================================
-
-
 @router.get("/summary")
 def finance_summary(
     period: str = Query(default="30d"),
@@ -63,21 +53,11 @@ def finance_summary(
     db: Session = Depends(get_db),
 ):
     start, end = get_finance_date_range(period, start_date, end_date)
-
-    # -----------------------------------------------------
-    # DONATION INCOME
-    # -----------------------------------------------------
-
     donation_income = (
         db.query(func.coalesce(func.sum(Donation.amount), 0))
         .filter(Donation.donation_date >= start, Donation.donation_date <= end)
         .scalar()
     )
-
-    # -----------------------------------------------------
-    # MAINTENANCE EXPENSE
-    # -----------------------------------------------------
-
     maintenance_expense = (
         db.query(func.coalesce(func.sum(MaintenanceRecord.cost), 0))
         .filter(
@@ -85,27 +65,12 @@ def finance_summary(
         )
         .scalar()
     )
-
-    # -----------------------------------------------------
-    # CURRENT ASSET VALUE
-    # -----------------------------------------------------
-
     asset_value = db.query(func.coalesce(func.sum(Asset.current_value), 0)).scalar()
-
-    # -----------------------------------------------------
-    # DONATION COUNT
-    # -----------------------------------------------------
-
     donation_count = (
         db.query(Donation)
         .filter(Donation.donation_date >= start, Donation.donation_date <= end)
         .count()
     )
-
-    # -----------------------------------------------------
-    # MAINTENANCE COUNT
-    # -----------------------------------------------------
-
     maintenance_count = (
         db.query(MaintenanceRecord)
         .filter(
@@ -113,11 +78,6 @@ def finance_summary(
         )
         .count()
     )
-
-    # -----------------------------------------------------
-    # NET OPERATING AMOUNT
-    # -----------------------------------------------------
-
     net_amount = float(donation_income) - float(maintenance_expense)
 
     expense_ratio = 0
@@ -139,11 +99,6 @@ def finance_summary(
     }
 
 
-# =========================================================
-# DAILY CASH FLOW
-# =========================================================
-
-
 @router.get("/daily")
 def daily_finance(
     period: str = Query(default="30d"),
@@ -152,11 +107,6 @@ def daily_finance(
     db: Session = Depends(get_db),
 ):
     start, end = get_finance_date_range(period, start_date, end_date)
-
-    # -----------------------------------------------------
-    # DONATIONS BY DAY
-    # -----------------------------------------------------
-
     donation_rows = (
         db.query(
             Donation.donation_date.label("date"),
@@ -166,11 +116,6 @@ def daily_finance(
         .group_by(Donation.donation_date)
         .all()
     )
-
-    # -----------------------------------------------------
-    # MAINTENANCE BY DAY
-    # -----------------------------------------------------
-
     maintenance_rows = (
         db.query(
             MaintenanceRecord.start_date.label("date"),
@@ -210,11 +155,6 @@ def daily_finance(
     return data
 
 
-# =========================================================
-# DONATION INCOME BY CATEGORY
-# =========================================================
-
-
 @router.get("/income-by-category")
 def finance_income_by_category(
     period: str = Query(default="30d"),
@@ -244,11 +184,6 @@ def finance_income_by_category(
         }
         for row in results
     ]
-
-
-# =========================================================
-# MAINTENANCE EXPENSE BY CATEGORY
-# =========================================================
 
 
 @router.get("/expense-by-category")
@@ -283,11 +218,6 @@ def finance_expense_by_category(
         }
         for row in results
     ]
-
-
-# =========================================================
-# CAMPAIGN PERFORMANCE
-# =========================================================
 
 
 @router.get("/campaigns")

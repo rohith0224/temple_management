@@ -939,11 +939,6 @@ def understand_query(question: str, history: list | None = None):
     return intent
 
 
-# =========================================================
-# RESULT EXPLANATION
-# =========================================================
-
-
 def explain_result(question: str, intent: dict, data):
     if data is None:
         return {

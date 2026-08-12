@@ -11,12 +11,6 @@ API_BASE = "http://127.0.0.1:8000"
 st.set_page_config(
     page_title="Temple Management Dashboard", page_icon="🛕", layout="wide"
 )
-
-
-# =========================================================
-# ROLE PERMISSIONS
-# =========================================================
-
 ROLE_PERMISSIONS = {
     "Temple Admin": {
         "overview": True,
@@ -75,11 +69,6 @@ ROLE_PERMISSIONS = {
 }
 
 
-# =========================================================
-# API HELPERS
-# =========================================================
-
-
 def get_api(endpoint, params=None):
     try:
         response = requests.get(f"{API_BASE}{endpoint}", params=params, timeout=20)
@@ -106,11 +95,6 @@ def post_api(endpoint, payload):
         st.error(f"AI request failed: {e}")
 
         return None
-
-
-# =========================================================
-# TABLE HELPERS
-# =========================================================
 
 
 def show_donation_table(records):
@@ -201,11 +185,6 @@ def show_maintenance_table(records):
     st.dataframe(df, width="stretch", hide_index=True)
 
 
-# =========================================================
-# DATE FILTER
-# =========================================================
-
-
 def get_date_params():
     st.sidebar.divider()
 
@@ -244,10 +223,6 @@ def get_date_params():
     return (range_label, {"period": period_map[range_label]})
 
 
-# =========================================================
-# SIDEBAR
-# =========================================================
-
 st.sidebar.title("🛕 Temple Management")
 
 
@@ -285,12 +260,6 @@ page = st.sidebar.radio("Navigation", pages)
 st.title("🛕 Temple Management Dashboard")
 
 st.caption(f"Current profile: {profile}")
-
-
-# =========================================================
-# OVERVIEW
-# =========================================================
-
 if page == "Overview":
     st.header("Temple Operations Overview")
 
@@ -334,12 +303,6 @@ if page == "Overview":
         cols[1].metric("Open", maintenance["open_records"])
 
         cols[2].metric("Total Cost", f"${maintenance['total_cost']:,.2f}")
-
-
-# =========================================================
-# DONATIONS
-# =========================================================
-
 elif page == "Donations":
     st.header("Donation Management")
 
@@ -398,12 +361,6 @@ elif page == "Donations":
     records = get_api("/donations/records", params=params)
 
     show_donation_table(records)
-
-
-# =========================================================
-# ASSETS
-# =========================================================
-
 elif page == "Assets":
     st.header("Asset Management")
 
@@ -459,12 +416,6 @@ elif page == "Assets":
     records = get_api("/assets/records")
 
     show_asset_table(records)
-
-
-# =========================================================
-# MAINTENANCE
-# =========================================================
-
 elif page == "Maintenance":
     st.header("🔧 Maintenance Management")
 
@@ -532,12 +483,6 @@ elif page == "Maintenance":
     records = get_api("/maintenance/records")
 
     show_maintenance_table(records)
-
-
-# =========================================================
-# FINANCE
-# =========================================================
-
 elif page == "Finance":
     st.header("💰 Financial Overview")
 
@@ -636,14 +581,6 @@ elif page == "Finance":
 
         st.dataframe(campaign_df, width="stretch", hide_index=True)
 
-
-# =========================================================
-# AI ANALYST
-# =========================================================
-# =========================================================
-# AI ANALYST
-# =========================================================
-
 elif page == "AI Analyst":
     st.header("✨ AI Temple Analyst")
 
@@ -653,39 +590,20 @@ Ask questions about donations, assets, maintenance, or finance.
 The LLM interprets the question, PostgreSQL provides the actual
 data, and the AI explains the result.
 """)
-
-    # =====================================================
-    # INITIALIZE CHAT HISTORY
-    # =====================================================
-
     if "ai_messages" not in st.session_state:
         st.session_state.ai_messages = []
-
-    # =====================================================
-    # CLEAR CHAT
-    # =====================================================
-
     header_left, header_right = st.columns([5, 1])
 
     with header_right:
         if st.button("Clear Chat", key="clear_ai_chat"):
             st.session_state.ai_messages = []
             st.rerun()
-
-    # =====================================================
-    # START MESSAGE
-    # =====================================================
-
     if not st.session_state.ai_messages:
         st.info("""
 👋 **Ready when you are.**
 
 Ask anything about donations, assets, maintenance, or finance.
 """)
-
-    # =====================================================
-    # RESULT RENDERER
-    # =====================================================
 
     def render_ai_result(result, message_index):
         intent = result.get("intent", {})
@@ -703,11 +621,6 @@ Ask anything about donations, assets, maintenance, or finance.
         chart_type = intent.get("chart_type")
 
         title = intent.get("title", "AI Analysis")
-
-        # ===============================================
-        # AI INTERPRETATION
-        # ===============================================
-
         with st.expander("AI Interpretation"):
             cols = st.columns(4)
 
@@ -725,11 +638,6 @@ Ask anything about donations, assets, maintenance, or finance.
                 st.json(intent["filters"])
 
             st.caption(f"Filter logic: " f"{intent.get('filter_logic', 'AND')}")
-
-        # ===============================================
-        # DATE RANGE
-        # ===============================================
-
         if date_range:
             st.caption(
                 f"Data range: "
@@ -739,11 +647,6 @@ Ask anything about donations, assets, maintenance, or finance.
             )
 
         st.subheader(title)
-
-        # ===============================================
-        # DONATIONS
-        # ===============================================
-
         if domain == "donations":
             if analysis == "summary" and isinstance(data, dict):
                 cols = st.columns(4)
@@ -866,11 +769,6 @@ Ask anything about donations, assets, maintenance, or finance.
 
             else:
                 st.info("No matching donation data found.")
-
-        # ===============================================
-        # ASSETS
-        # ===============================================
-
         elif domain == "assets":
             if analysis == "asset_summary" and isinstance(data, dict):
                 cols = st.columns(5)
@@ -942,11 +840,6 @@ Ask anything about donations, assets, maintenance, or finance.
 
             else:
                 st.info("No matching asset data found.")
-
-        # ===============================================
-        # MAINTENANCE
-        # ===============================================
-
         elif domain == "maintenance":
             if analysis == "maintenance_summary" and isinstance(data, dict):
                 cols = st.columns(6)
@@ -1054,11 +947,6 @@ Ask anything about donations, assets, maintenance, or finance.
 
             else:
                 st.info("No matching maintenance data found.")
-
-        # ===============================================
-        # FINANCE
-        # ===============================================
-
         elif domain == "finance":
             if analysis == "finance_summary" and isinstance(data, dict):
                 cols = st.columns(5)
@@ -1173,22 +1061,12 @@ Ask anything about donations, assets, maintenance, or finance.
 
         else:
             st.warning("The AI returned an unknown analysis domain.")
-
-        # ===============================================
-        # AI EXPLANATION
-        # ===============================================
-
         if explanation:
             st.divider()
 
             st.markdown("### 🧠 What This Means")
 
             st.info(explanation)
-
-        # ===============================================
-        # SUGGESTED FOLLOW-UP QUESTIONS
-        # ===============================================
-
         follow_up_questions = result.get("follow_up_questions", [])
 
         if follow_up_questions:
@@ -1206,11 +1084,6 @@ Ask anything about donations, assets, maintenance, or finance.
                         width="stretch",
                     ):
                         ask_question(suggestion)
-
-        # ===============================================
-        # READY FOR NEXT QUESTION
-        # ===============================================
-
         st.markdown("""
 ---
 ### ✅ Analysis complete — ready for your next question
@@ -1219,9 +1092,6 @@ Ask another question below. You can switch between **donations,
 assets, maintenance, and finance** at any time.
 """)
 
-    # =====================================================
-    # CONVERSATION HISTORY PAYLOAD
-    # =====================================================
     # Sends the last few Q&A pairs to the backend so the LLM can
     # resolve follow-ups like "what about the second one".
 
@@ -1255,10 +1125,6 @@ assets, maintenance, and finance** at any time.
                 i += 1
 
         return history[-limit:]
-
-    # =====================================================
-    # ASK A QUESTION (typed or a suggested follow-up)
-    # =====================================================
 
     def ask_question(question_text):
         history_payload = build_history_payload()
@@ -1300,10 +1166,6 @@ assets, maintenance, and finance** at any time.
 
         st.rerun()
 
-    # =====================================================
-    # RENDER CHAT HISTORY
-    # =====================================================
-
     for message_index, message in enumerate(st.session_state.ai_messages):
         role = message.get("role")
 
@@ -1319,11 +1181,6 @@ assets, maintenance, and finance** at any time.
 
             with st.chat_message("assistant"):
                 render_ai_result(result, message_index)
-
-    # =====================================================
-    # NEXT QUESTION INPUT
-    # =====================================================
-
     question = st.chat_input("Ask your next question...")
 
     if question:

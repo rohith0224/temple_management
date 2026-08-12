@@ -11,11 +11,6 @@ from backend.app.models import Asset, MaintenanceRecord, Vendor
 router = APIRouter(prefix="/maintenance", tags=["Maintenance"])
 
 
-# =========================================================
-# SUMMARY
-# =========================================================
-
-
 @router.get("/summary")
 def maintenance_summary(db: Session = Depends(get_db)):
     total_records = db.query(MaintenanceRecord).count()
@@ -50,11 +45,6 @@ def maintenance_summary(db: Session = Depends(get_db)):
     }
 
 
-# =========================================================
-# BY STATUS
-# =========================================================
-
-
 @router.get("/by-status")
 def maintenance_by_status(db: Session = Depends(get_db)):
     results = (
@@ -72,11 +62,6 @@ def maintenance_by_status(db: Session = Depends(get_db)):
         {"status": row.status or "UNKNOWN", "count": row.count, "cost": float(row.cost)}
         for row in results
     ]
-
-
-# =========================================================
-# COST BY ASSET
-# =========================================================
 
 
 @router.get("/cost-by-asset")
@@ -108,11 +93,6 @@ def maintenance_cost_by_asset(
     ]
 
 
-# =========================================================
-# COST BY ASSET CATEGORY
-# =========================================================
-
-
 @router.get("/cost-by-category")
 def maintenance_cost_by_category(db: Session = Depends(get_db)):
     results = (
@@ -135,11 +115,6 @@ def maintenance_cost_by_category(db: Session = Depends(get_db)):
         }
         for row in results
     ]
-
-
-# =========================================================
-# RECORDS
-# =========================================================
 
 
 @router.get("/records")
@@ -206,11 +181,6 @@ def maintenance_records(
     return output
 
 
-# =========================================================
-# ASSET OPTIONS
-# =========================================================
-
-
 @router.get("/assets")
 def maintenance_asset_options(db: Session = Depends(get_db)):
     assets = db.query(Asset).order_by(Asset.asset_tag).all()
@@ -219,11 +189,6 @@ def maintenance_asset_options(db: Session = Depends(get_db)):
         {"id": asset.id, "asset_tag": asset.asset_tag, "name": asset.name}
         for asset in assets
     ]
-
-
-# =========================================================
-# VENDOR OPTIONS
-# =========================================================
 
 
 @router.get("/vendors")
