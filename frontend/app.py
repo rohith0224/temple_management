@@ -587,8 +587,9 @@ elif page == "AI Analyst":
     st.write("""
 Ask questions about donations, assets, maintenance, or finance.
 
-The LLM interprets the question, PostgreSQL provides the actual
-data, and the AI explains the result.
+The AI decides what data it needs, queries PostgreSQL directly (it can
+look up more than one thing before answering), and explains the result
+using only the real numbers it retrieved.
 """)
     if "ai_messages" not in st.session_state:
         st.session_state.ai_messages = []
@@ -605,469 +606,77 @@ data, and the AI explains the result.
 Ask anything about donations, assets, maintenance, or finance.
 """)
 
+    def format_metric_value(label, value):
+        if not isinstance(value, (int, float)):
+            return str(value)
+
+        if "count" in str(label).lower():
+            return f"{int(value):,}"
+
+        return f"${value:,.2f}"
+
     def render_ai_result(result, message_index):
-        intent = result.get("intent", {})
-
-        data = result.get("data")
-
+        title = result.get("title") or "AI Analysis"
         explanation = result.get("explanation")
+        chart = result.get("chart")
+        steps = result.get("steps") or []
 
-        date_range = result.get("date_range")
-
-        domain = intent.get("domain")
-
-        analysis = intent.get("analysis")
-
-        chart_type = intent.get("chart_type")
-
-        title = intent.get("title", "AI Analysis")
-        with st.expander("AI Interpretation"):
-            cols = st.columns(4)
-
-            cols[0].metric("Domain", domain or "Unknown")
-
-            cols[1].metric("Analysis", analysis or "Unknown")
-
-            cols[2].metric("Visualization", chart_type or "Unknown")
-
-            cols[3].metric("Period", intent.get("period") or "N/A")
-
-            if intent.get("filters"):
-                st.write("Selected Filters")
-
-                st.json(intent["filters"])
-
-            st.caption(f"Filter logic: " f"{intent.get('filter_logic', 'AND')}")
-        if date_range:
-            st.caption(
-                f"Data range: "
-                f"{date_range['start_date']} "
-                f"→ "
-                f"{date_range['end_date']}"
-            )
+        with st.expander("How the AI got this answer"):
+            if steps:
+                for step_index, step in enumerate(steps, start=1):
+                    st.caption(f"Step {step_index}: called `{step['tool']}`")
+                    st.json(step.get("args", {}))
+            else:
+                st.caption("No data lookup was needed for this response.")
 
         st.subheader(title)
-        if domain == "donations":
-            if analysis == "summary" and isinstance(data, dict):
-                cols = st.columns(4)
 
-                cols[0].metric("Total Donations", f"${data.get('total', 0):,.2f}")
+        if chart and chart.get("data"):
+            chart_type = chart.get("type")
+            data = chart["data"]
 
-                cols[1].metric("Donation Count", data.get("count", 0))
+            if chart_type == "metric":
+                cols = st.columns(len(data))
 
-                cols[2].metric("Average Donation", f"${data.get('average', 0):,.2f}")
+                for col, item in zip(cols, data):
+                    label = str(item.get("label", "")).replace("_", " ").title()
+                    col.metric(label, format_metric_value(item.get("label"), item.get("value")))
 
-                cols[3].metric("Largest Donation", f"${data.get('largest', 0):,.2f}")
-
-                records = data.get("records", [])
-
-                if records:
-                    st.subheader("Donation Details")
-
-                    show_donation_table(records)
-
-            elif analysis == "trend" and data:
+            elif chart_type == "table":
                 df = pd.DataFrame(data)
 
-                fig = px.line(
-                    df,
-                    x="date",
-                    y="total",
-                    markers=True,
-                    title=title,
-                    labels={"date": "Date", "total": "Donation Amount ($)"},
-                )
-
-                st.plotly_chart(
-                    fig, width="stretch", key=f"ai_chart_{message_index}_donation_trend"
-                )
-
-            elif analysis == "category" and data:
-                df = pd.DataFrame(data)
-
-                if chart_type == "pie":
-                    fig = px.pie(df, names="category", values="total", title=title)
-
+                if not df.empty:
+                    st.dataframe(df, width="stretch", hide_index=True)
                 else:
-                    fig = px.bar(
-                        df,
-                        x="category",
-                        y="total",
-                        title=title,
-                        labels={"category": "Category", "total": "Donation Amount ($)"},
-                    )
+                    st.info("No matching records found.")
 
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_donation_category",
-                )
-
-            elif analysis == "campaign" and data:
+            elif chart_type in {"bar", "line", "pie"}:
                 df = pd.DataFrame(data)
 
-                if chart_type == "pie":
-                    fig = px.pie(df, names="campaign", values="total", title=title)
+                if {"group", "value"}.issubset(df.columns) and not df.empty:
+                    if chart_type == "bar":
+                        fig = px.bar(df, x="group", y="value", title=title)
+                    elif chart_type == "line":
+                        fig = px.line(df, x="group", y="value", markers=True, title=title)
+                    else:
+                        fig = px.pie(df, names="group", values="value", title=title)
 
+                    st.plotly_chart(
+                        fig, width="stretch", key=f"ai_chart_{message_index}"
+                    )
+                elif not df.empty:
+                    st.dataframe(df, width="stretch", hide_index=True)
                 else:
-                    fig = px.bar(
-                        df,
-                        x="campaign",
-                        y="total",
-                        title=title,
-                        labels={"campaign": "Campaign", "total": "Donation Amount ($)"},
-                    )
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_donation_campaign",
-                )
-
-            elif analysis == "location" and data:
-                df = pd.DataFrame(data)
-
-                if chart_type == "pie":
-                    fig = px.pie(df, names="location", values="total", title=title)
-
-                else:
-                    fig = px.bar(
-                        df,
-                        x="location",
-                        y="total",
-                        title=title,
-                        labels={"location": "Location", "total": "Donation Amount ($)"},
-                    )
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_donation_location",
-                )
-
-            elif analysis == "payment_method" and data:
-                df = pd.DataFrame(data)
-
-                if chart_type == "bar":
-                    fig = px.bar(df, x="payment_method", y="total", title=title)
-
-                else:
-                    fig = px.pie(
-                        df,
-                        names="payment_method",
-                        values="total",
-                        hole=0.4,
-                        title=title,
-                    )
-
-                st.plotly_chart(
-                    fig, width="stretch", key=f"ai_chart_{message_index}_payment_method"
-                )
-
-            elif analysis == "top_donations" and data:
-                show_donation_table(data)
-
-            else:
-                st.info("No matching donation data found.")
-        elif domain == "assets":
-            if analysis == "asset_summary" and isinstance(data, dict):
-                cols = st.columns(5)
-
-                cols[0].metric("Total Assets", data.get("total_assets", 0))
-
-                cols[1].metric("Asset Value", f"${data.get('total_value', 0):,.2f}")
-
-                cols[2].metric("Under Maintenance", data.get("under_maintenance", 0))
-
-                cols[3].metric("Poor Condition", data.get("poor_condition", 0))
-
-                cols[4].metric("Damaged", data.get("damaged_assets", 0))
-
-            elif analysis == "asset_list" and data:
-                show_asset_table(data)
-
-            elif analysis == "asset_category" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.bar(
-                    df,
-                    x="category",
-                    y="count",
-                    title=title,
-                    labels={"category": "Category", "count": "Asset Count"},
-                )
-
-                st.plotly_chart(
-                    fig, width="stretch", key=f"ai_chart_{message_index}_asset_category"
-                )
-
-            elif analysis == "asset_location" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.pie(
-                    df, names="location", values="count", hole=0.4, title=title
-                )
-
-                st.plotly_chart(
-                    fig, width="stretch", key=f"ai_chart_{message_index}_asset_location"
-                )
-
-            elif analysis == "asset_condition" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.bar(df, x="condition", y="count", title=title)
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_asset_condition",
-                )
-
-            elif analysis == "asset_value" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.bar(
-                    df,
-                    x="category",
-                    y="value",
-                    title=title,
-                    labels={"value": "Asset Value ($)"},
-                )
-
-                st.plotly_chart(
-                    fig, width="stretch", key=f"ai_chart_{message_index}_asset_value"
-                )
-
-            else:
-                st.info("No matching asset data found.")
-        elif domain == "maintenance":
-            if analysis == "maintenance_summary" and isinstance(data, dict):
-                cols = st.columns(6)
-
-                cols[0].metric("Records", data.get("total_records", 0))
-
-                cols[1].metric("Open", data.get("open_records", 0))
-
-                cols[2].metric("In Progress", data.get("in_progress_records", 0))
-
-                cols[3].metric("Completed", data.get("completed_records", 0))
-
-                cols[4].metric("Total Cost", f"${data.get('total_cost', 0):,.2f}")
-
-                cols[5].metric("Average Cost", f"${data.get('average_cost', 0):,.2f}")
-
-            elif analysis == "maintenance_list" and data:
-                show_maintenance_table(data)
-
-            elif analysis == "maintenance_status" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.bar(
-                    df, x="status", y="count", title=title, hover_data=["cost"]
-                )
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_maintenance_status",
-                )
-
-            elif analysis == "maintenance_cost_asset" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.bar(
-                    df,
-                    x="asset_name",
-                    y="total_cost",
-                    title=title,
-                    hover_data=["asset_tag", "maintenance_count"],
-                    labels={"total_cost": "Maintenance Cost ($)"},
-                )
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_maintenance_asset",
-                )
-
-            elif analysis == "maintenance_cost_vendor" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.bar(
-                    df,
-                    x="vendor_name",
-                    y="total_cost",
-                    title=title,
-                    hover_data=["maintenance_count"],
-                    labels={
-                        "vendor_name": "Vendor",
-                        "total_cost": "Maintenance Cost ($)",
-                    },
-                )
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_maintenance_vendor",
-                )
-
-            elif analysis == "maintenance_cost_category" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.bar(
-                    df,
-                    x="category",
-                    y="total_cost",
-                    title=title,
-                    labels={"total_cost": "Maintenance Cost ($)"},
-                )
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_maintenance_category",
-                )
-
-            elif analysis == "maintenance_type" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.bar(
-                    df,
-                    x="maintenance_type",
-                    y="count",
-                    title=title,
-                    hover_data=["total_cost"],
-                )
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_maintenance_type",
-                )
-
-            else:
-                st.info("No matching maintenance data found.")
-        elif domain == "finance":
-            if analysis == "finance_summary" and isinstance(data, dict):
-                cols = st.columns(5)
-
-                cols[0].metric(
-                    "Donation Income", f"${data.get('donation_income', 0):,.2f}"
-                )
-
-                cols[1].metric(
-                    "Maintenance Expense", f"${data.get('maintenance_expense', 0):,.2f}"
-                )
-
-                cols[2].metric(
-                    "Operating Amount", f"${data.get('operating_amount', 0):,.2f}"
-                )
-
-                cols[3].metric("Asset Value", f"${data.get('asset_value', 0):,.2f}")
-
-                cols[4].metric(
-                    "Maintenance / Income",
-                    f"{data.get('maintenance_to_income_ratio', 0):.1f}%",
-                )
-
-            elif analysis == "finance_trend" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.line(
-                    df,
-                    x="date",
-                    y=["income", "expense", "operating_amount"],
-                    markers=True,
-                    title=title,
-                    labels={
-                        "date": "Date",
-                        "value": "Amount ($)",
-                        "variable": "Financial Metric",
-                    },
-                )
-
-                st.plotly_chart(
-                    fig, width="stretch", key=f"ai_chart_{message_index}_finance_trend"
-                )
-
-            elif analysis == "finance_income_category" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.bar(
-                    df,
-                    x="category",
-                    y="income",
-                    title=title,
-                    hover_data=["donation_count"],
-                    labels={"income": "Income ($)"},
-                )
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_finance_income_category",
-                )
-
-            elif analysis == "finance_expense_category" and data:
-                df = pd.DataFrame(data)
-
-                fig = px.bar(
-                    df,
-                    x="category",
-                    y="expense",
-                    title=title,
-                    hover_data=["maintenance_count"],
-                    labels={"expense": "Expense ($)"},
-                )
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_finance_expense_category",
-                )
-
-            elif analysis == "finance_campaigns" and data:
-                df = pd.DataFrame(data)
-
-                st.dataframe(df, width="stretch", hide_index=True)
-
-            elif analysis == "finance_campaign_performance" and data:
-                df = pd.DataFrame(data)
-
-                chart_df = df[["campaign_name", "target_amount", "raised_amount"]].melt(
-                    id_vars=["campaign_name"], var_name="metric", value_name="amount"
-                )
-
-                fig = px.bar(
-                    chart_df,
-                    x="campaign_name",
-                    y="amount",
-                    color="metric",
-                    barmode="group",
-                    title=title,
-                    labels={"campaign_name": "Campaign", "amount": "Amount ($)"},
-                )
-
-                st.plotly_chart(
-                    fig,
-                    width="stretch",
-                    key=f"ai_chart_{message_index}_campaign_performance",
-                )
-
-                st.dataframe(df, width="stretch", hide_index=True)
-
-            else:
-                st.info("No matching finance data found.")
-
+                    st.info("No matching data found.")
         else:
-            st.warning("The AI returned an unknown analysis domain.")
+            st.info("No chart-worthy data was retrieved for this response.")
+
         if explanation:
             st.divider()
-
             st.markdown("### 🧠 What This Means")
-
             st.info(explanation)
-        follow_up_questions = result.get("follow_up_questions", [])
+
+        follow_up_questions = result.get("follow_up_questions") or []
 
         if follow_up_questions:
             st.caption("Suggested follow-up questions")
@@ -1084,6 +693,7 @@ Ask anything about donations, assets, maintenance, or finance.
                         width="stretch",
                     ):
                         ask_question(suggestion)
+
         st.markdown("""
 ---
 ### ✅ Analysis complete — ready for your next question
@@ -1144,22 +754,14 @@ assets, maintenance, and finance** at any time.
                 {
                     "role": "assistant",
                     "result": {
-                        "intent": {
-                            "domain": None,
-                            "analysis": None,
-                            "chart_type": None,
-                            "period": None,
-                            "filters": [],
-                            "filter_logic": "AND",
-                            "title": "Unable to Complete Analysis",
-                        },
-                        "date_range": None,
-                        "data": None,
+                        "title": "Unable to Complete Analysis",
                         "explanation": (
                             "The analysis request could not be completed. "
                             "Please try again or rephrase the question."
                         ),
+                        "chart": None,
                         "follow_up_questions": [],
+                        "steps": [],
                     },
                 }
             )
