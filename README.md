@@ -15,13 +15,16 @@ and an LLM-powered natural-language analytics assistant.
   cost breakdowns by asset, vendor, category, and type.
 - **Finance** — a combined view of donation income vs. maintenance expense,
   asset value, and campaign target-vs-raised performance over time.
-- **AI Analyst** — ask questions in plain English (e.g. *"which campaign
-  raised the most?"* or *"show donations by location last month"*). A Groq-hosted
-  LLM interprets the question into a structured, validated query — it never
-  writes SQL or invents data — PostgreSQL returns the real numbers, and the
-  LLM explains the result in plain language. The assistant remembers recent
-  conversation turns (so follow-ups like *"what about the second one?"* work)
-  and suggests up to three follow-up questions after each answer.
+- **AI Analyst** — ask questions in plain English (e.g. *"what can be done
+  to increase donations?"* or *"which assets need maintenance?"*). A
+  Groq-hosted LLM answers by calling a small set of tools — it can query
+  any whitelisted table/column/filter combination, and call tools multiple
+  times per question (e.g. once per dimension) before synthesizing an
+  answer. It never writes SQL or invents data: every tool call is validated
+  and executed by plain SQLAlchemy, so the LLM only ever chooses *what* to
+  look up, never *how*. The assistant remembers recent conversation turns
+  (so follow-ups like *"what about the second one?"* work) and suggests up
+  to three follow-up questions after each answer.
 - **Role-based dashboard views** — the sidebar role selector (Temple Admin,
   Finance Manager, Donation Manager, Asset Manager, Maintenance Staff,
   Auditor) changes which pages are visible. This is a UI convenience for
@@ -45,13 +48,14 @@ backend/
     main.py           FastAPI app, router registration, health check
     database.py       SQLAlchemy engine/session setup
     models.py         ORM models: Donor, Campaign, Donation, Vendor, Asset, MaintenanceRecord
-    ai_service.py     Groq system prompt + intent parsing + result explanation
+    query_catalog.py  Whitelisted tables/columns/joins + safe query builders (no raw SQL)
+    ai_service.py     Groq tool-calling loop + system prompt + answer synthesis
   routes/
     donations.py      /donations endpoints
     assets.py         /assets endpoints
     maintenance.py    /maintenance endpoints
     finance.py        /finance endpoints
-    ai.py             /ai/query endpoint — executes AI-interpreted analytics
+    ai.py             /ai/query endpoint — runs the AI tool-calling analysis
   seed_data.py        Generates realistic demo data with Faker
 frontend/
   app.py              Streamlit dashboard (all pages)
@@ -144,17 +148,41 @@ available at `/docs` once the backend is running.
 
 ## Notes on the AI Analyst
 
-The LLM never generates SQL or touches the database directly. It only
-selects from a fixed, whitelisted set of `domain` / `analysis` / `filter`
-values (defined in `backend/app/ai_service.py`); the backend validates that
-output and runs a corresponding, hand-written SQLAlchemy query. This keeps
-the assistant flexible in how it's asked questions while keeping the actual
-data access fully deterministic and injection-safe.
+The LLM never generates or sees SQL. It's given 3 tools:
+
+- `query_temple_data` — a generic tool over `donations`/`assets`/
+  `maintenance_records`: pick a table, an optional group-by column, a
+  metric + aggregation, and filters, all validated against a whitelist in
+  `backend/app/query_catalog.py`.
+- `query_finance_summary` — donation income vs. maintenance expense vs.
+  asset value for a period.
+- `query_campaign_performance` — target vs. raised per campaign.
+
+The LLM's output for each tool call is a small JSON object (e.g. `{"table":
+"donations", "group_by": "category", "metric_column": "amount",
+"metric_aggregation": "sum"}`) — that's the entire extent of what it
+controls. `query_catalog.py` resolves those fields against real SQLAlchemy
+column objects and builds the actual query; the LLM never influences the
+query text itself, and the query-building code is read-only by
+construction (no insert/update/delete path exists anywhere in it).
+
+It can call tools multiple times before answering — e.g. a question like
+"what can be done to increase donations?" typically triggers 3-4 calls,
+one per dimension (category, location, payment method, campaign), so the
+answer can compare across them rather than reporting a single breakdown.
 
 ## Known Limitations
 
 - No authentication/authorization — the role selector in the sidebar is a
   UI-only convenience, not real access control.
-- No rate limiting on `/ai/query` — each request calls the Groq API.
+- No rate limiting on `/ai/query`, and each question can now trigger
+  several Groq calls (one per tool call, plus a final synthesis call) —
+  meaningfully more token usage per question than a single-call design.
+  On Groq's free tier (100K tokens/day) this is reachable in normal use,
+  not just abuse.
+- Error handling around the Groq/DB calls in the AI tool-calling loop is
+  minimal — a transient Groq failure (rate limit, network blip) or a
+  malformed filter value currently surfaces as a raw 500 rather than a
+  clean error response.
 - Schema changes are applied via `Base.metadata.create_all`, which creates
   new tables but does not migrate existing ones (no Alembic yet).
