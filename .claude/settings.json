@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(venv/bin/black --skip-magic-trailing-comma backend/app/main.py backend/app/models.py backend/app/database.py backend/app/ai_service.py backend/routes/ai.py backend/routes/assets.py backend/routes/donations.py backend/routes/finance.py backend/routes/maintenance.py backend/seed_data.py frontend/app.py)"
-    ]
-  }
-}
